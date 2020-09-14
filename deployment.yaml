@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-tunnel-service
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+  type: ClusterIP
+  selector:
+    app: sentinel-tunnel
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: sentinel-tunnel
+  name: sentinel-tunnel
+spec:
+  selector:
+    matchLabels:
+      app: sentinel-tunnel
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: sentinel-tunnel
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - sentinel-tunnel
+            topologyKey: "kubernetes.io/hostname"
+      volumes:
+      - name: sentinel-tunnel-config
+        configMap:
+          name: sentinel-tunnel-config
+          defaultMode: 0600
+
+      containers:
+      - name: sentiel-tunnel
+        image: tdien105/sentinel-tunnel
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+
+        volumeMounts:
+        - mountPath: /app/config.json
+          name: sentinel-tunnel-config
+          subPath: default
+
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          successThreshold: 1
+          failureThreshold: 5
+          timeoutSeconds: 3
+
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 10
+          periodSeconds: 3
+          successThreshold: 5
+          failureThreshold: 3
+          timeoutSeconds: 3
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-tunnel-config
+data:
+  default: |
+    {
+      "Sentinels_addresses_list":[
+        "rfs-redisfailover.redis-system.svc.cluster.local:26379"
+    ],
+      "Databases":[
+        {
+          "Name":"mymaster",
+          "Local_port":"6379"
+        }
+      ]
+    }
+  

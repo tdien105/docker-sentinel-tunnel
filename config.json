@@ -1,0 +1,11 @@
+{
+	"Sentinels_addresses_list":[
+		"node1.local:8001"
+	],
+	"Databases":[
+		{
+			"Name":"db0",
+			"Local_port":"6379"
+		}
+	]
+}
